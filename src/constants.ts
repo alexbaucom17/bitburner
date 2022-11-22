@@ -1,0 +1,13 @@
+export const comm_port = 5
+export const deploy_file = "/deploy/botnetv0.js"
+export const max_crawl_distance = 10
+export const home_reserved_ram = 32
+export const default_target = "n00dles"
+export const state_file = "/botnet/botnet_state.txt"
+export const write_state_time = 60 * 1000 //ms
+export const rank_target_time = 60 * 1000 //ms
+export const purchase_server_time = 10 * 1000 //ms
+export const min_purchase_server_ram = 16
+export const purchase_server_cost_fraction = 0.1
+export const scan_deploy_file = "/deploy/scanbotv0.js"
+export const scan_data_port = 6
