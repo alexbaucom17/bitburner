@@ -26,10 +26,6 @@ type TargetRankingInfo = {
 }
 
 
-// function GetAllHostnames(ns: NS): string[] {
-// 	return crawl(ns, "home", 0, [], constants.max_crawl_distance)
-// }
-
 function getPotentialBots(ns: NS): string[] {
 	const all_hostnames = GetAllHostnames(ns)
 	let potential_bot_hostnames = []
@@ -40,6 +36,7 @@ function getPotentialBots(ns: NS): string[] {
 	return potential_bot_hostnames
 }
 
+
 function ComputeThreads(ns: NS, hostname: string, deploy_file: string, reserved_ram=0): number {
 	const script_ram = ns.getScriptRam(deploy_file)
 	const max_ram = ns.getServerMaxRam(hostname) - reserved_ram
@@ -47,19 +44,9 @@ function ComputeThreads(ns: NS, hostname: string, deploy_file: string, reserved_
 }
 
 // Public utils
-export function crawl(ns: NS, hostname: string, depth: number, prev_seen: string[], max_depth: number = 10): string[] {
-	if (depth > max_depth) return [];
-	let new_seen: string[] = []
-
-	const servers = ns.scan(hostname)
-	for (const server of servers) {
-		if (prev_seen.includes(server)) continue;
-		if (new_seen.includes(server)) continue;
-		new_seen.push(server)
-		const tmp_seen = prev_seen.concat(new_seen)
-		new_seen = new_seen.concat(crawl(ns, server, depth + 1, tmp_seen, max_depth))
-	}
-	return new_seen
+export function rootAllPossibleHosts(ns: NS) {
+    const all_hostnames = GetAllHostnames(ns)
+    all_hostnames.forEach(hostname => maybeGetRoot(ns, hostname))
 }
 
 // Single bot functions
@@ -73,17 +60,20 @@ function StartBot(ns: NS, hostname: string, target: string, deploy_file: string)
 	if (!ns.fileExists(deploy_file, hostname)) {
 		throw Error(`File ${deploy_file} does not exist on ${hostname}`)
 	}
-	const n_threads = ComputeThreads(ns, hostname, deploy_file)
+	const n_threads = ComputeThreads(ns, hostname, deploy_file, constants.other_reserved_ram)
+    if (n_threads === 0) return 0
 	ns.exec(deploy_file, hostname, n_threads, target)
 	ns.tprint(`Started ${hostname} with ${n_threads} threads`)
     return n_threads
 }
 
-function CleanBot(ns: NS, hostname: string, botnet_file: string) {
-	StopBot(ns, hostname, botnet_file)
+function CleanBot(ns: NS, hostname: string, files_to_clean: string[]) {
+	files_to_clean.forEach(file => StopBot(ns, hostname, file))
     if (hostname === "home") return
-	const files = ns.ls(hostname, botnet_file)
-	files.map((file) => ns.rm(file, hostname))
+    for (const file of files_to_clean ){
+        const files = ns.ls(hostname, file)
+        files.map((file) => ns.rm(file, hostname))
+    }
 	ns.tprint(`Cleaned ${hostname}`)
 }
 
@@ -118,21 +108,15 @@ export function StopNet(ns: NS, states: BotStateMap) {
 
 export function CleanNet(ns: NS, states: BotStateMap) {
 	ns.tprint("Cleaning botnet...")
-	states.forEach((state: BotState, hostname: string) => CleanBot(ns, hostname, state.botnet_file))
+	states.forEach((state: BotState, hostname: string) => CleanBot(ns, hostname, constants.files_to_clean))
     states.clear()
 	ns.tprint("Done")
 }
 
-export function CleanAll(ns: NS, deploy_file: string) {
-    const all_hosts = GetAllHostnames(ns)
-    all_hosts.forEach((hostname: string) => CleanBot(ns, hostname, deploy_file))
-    ns.tprint("Done")
-}
-
 export async function DeployNet(ns: NS, states: BotStateMap, target: string, deploy_file: string) {
+    rootAllPossibleHosts(ns)
 	const potential_bots = getPotentialBots(ns)
 	ns.tprint(`Deploying botnet with ${deploy_file} against ${target}...`)
-	if(!maybeGetRoot(ns, target)) throw Error(`Could not get root on ${target}`)
 	for (const hostname of potential_bots) {
         const cur_state = states.get(hostname)
         let needs_update = false
@@ -184,6 +168,7 @@ function getHackInfo(ns: NS, hostname: string): HackInfo {
 function ScoreHost(ns: NS, hostname: string): TargetRankingInfo {
 	const hackInfo = getHackInfo(ns, hostname)
 	const myHackLevel = ns.getHackingLevel()
+    const hasRoot = maybeGetRoot(ns, hostname)
 
 	const buildReturn = (score: number): TargetRankingInfo => {
 		return {
@@ -193,8 +178,8 @@ function ScoreHost(ns: NS, hostname: string): TargetRankingInfo {
 		}
 	}
 
-	const hackLevelThresh = myHackLevel / 3
-	if (hackInfo.reqHackLevel > hackLevelThresh) return buildReturn(0)
+	const hackLevelThresh = myHackLevel / constants.server_ranking_divisor
+	if (hackInfo.reqHackLevel > hackLevelThresh || !hasRoot) return buildReturn(0)
 	return buildReturn(hackInfo.maxMoney)
 
 }
@@ -266,4 +251,21 @@ export function MaybePurchaseOrUpgradeServers(ns: NS): boolean {
     } else {
         return MaybeUpgradeServers(ns, current_servers)
     }
+}
+
+// State checking
+export function DetermineBotnetState(ns: NS, expected_deploy_file: string): BotStateMap {
+    let botnet_states = new Map<string, BotState>()
+    const all_hostnames = GetAllHostnames(ns)
+    for (const hostname of all_hostnames) {
+        const all_scripts = ns.ps(hostname)
+        for (const process_info of all_scripts) {
+            if(process_info.filename === expected_deploy_file) {
+                const target = process_info.args[0]
+                if (typeof target !== "string") continue
+                botnet_states.set(hostname, {target: target, botnet_file: expected_deploy_file, threads: process_info.threads})
+            }
+        }
+    }
+    return botnet_states
 }

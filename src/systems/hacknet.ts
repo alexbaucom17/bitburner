@@ -29,18 +29,16 @@ function maybeBuyAndUpgradeNewNode(ns: NS): boolean {
 }
 
 /** @param {NS} ns */
-export async function main(ns: NS) {
-
-    // while(true) {
-    //     const finished = maybeBuyAndUpgradeNewNode(ns)
-    //     if(finished) {
-    //         ns.tprint(`Purchased and upgraded node. Now have ${ns.hacknet.numNodes()} nodes`)
-    //     }
-    //     else {
-    //         ns.tprint("Unable to fully purchase/upgrade node")
-    //         break
-    //     }
-    // }
+export function buyAndUpgradeAllHacknetNodes(ns: NS) {
+    while(true) {
+        const finished = maybeBuyAndUpgradeNewNode(ns)
+        if(finished) {
+            ns.tprint(`Purchased and upgraded hacknet node. Now have ${ns.hacknet.numNodes()} nodes`)
+        }
+        else {
+            break
+        }
+    }
 }
 
 

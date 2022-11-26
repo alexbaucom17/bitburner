@@ -3,7 +3,7 @@ import {scan_deploy_file, scan_data_port, scan_state_file} from "constants"
 import {maybeGetRoot} from "botnet/utils"
 
 // Keep these in sync with scanbot
-type CrawlInfo = {
+export type CrawlInfo = {
     hostname: string
     path: string[]
 }

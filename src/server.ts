@@ -1,7 +1,9 @@
 import { NS } from "@ns";
 import * as constants from "constants";
-import {StopNet, CleanNet, DeployNet, ShowStatusNet, BotState, BotStateMap, CleanAll, SelectBestTarget, MaybePurchaseOrUpgradeServers} from "botnet/botnetlib";
+import {StopNet, CleanNet, DeployNet, ShowStatusNet, BotState, BotStateMap, SelectBestTarget, 
+    MaybePurchaseOrUpgradeServers, DetermineBotnetState} from "botnet/botnetlib";
 import {PerformFullScan, GetAllHostnames} from "scannet/scanlib"
+import {buyAndUpgradeAllHacknetNodes} from "systems/hacknet"
 
 function GetCommData(ns: NS): string | number | null {
 	let port = ns.getPortHandle(constants.comm_port)
@@ -74,10 +76,15 @@ async function RunCommands(ns: NS, botnet_states: BotStateMap, command: string, 
 		case "status":
 			ShowStatusNet(ns, botnet_states)
 			break
-        case "cleanall":
-            CleanAll(ns, args[0])
-            botnet_states.clear()
-            SaveState(ns, botnet_states)
+        case "purchase":
+            await DoServerPurchase(ns, botnet_states, true)
+            break
+        case "target":
+            await UpdateTarget(ns, botnet_states)
+            break
+        case "hacknet":
+            buyAndUpgradeAllHacknetNodes(ns)
+            break
     }
 }
 
@@ -124,6 +131,29 @@ class SimpleCounterTimer {
     }
 }
 
+async function DoServerPurchase(ns: NS, botnet_states: BotStateMap, print: boolean = false) {
+    const purchase_made = MaybePurchaseOrUpgradeServers(ns)
+    if(print) ns.tprint(`Purchased servers: ${purchase_made}`)
+    if (purchase_made) {
+        const cur_target = ExtractCurTarget(botnet_states)
+        if(cur_target) {
+            await DeployNet(ns, botnet_states, cur_target, constants.deploy_file)
+            SaveState(ns, botnet_states)
+        }
+    }
+}
+
+async function UpdateTarget(ns: NS, botnet_states: BotStateMap) {
+    const new_target = SelectBestTarget(ns)
+    const cur_target = ExtractCurTarget(botnet_states)
+    if(cur_target) {
+        if (new_target !== cur_target) {
+            await DeployNet(ns, botnet_states, new_target, constants.deploy_file)
+            SaveState(ns, botnet_states)
+        }
+    }
+}
+
 
 /** @param {NS} ns */
 export async function main(ns: NS) {
@@ -136,13 +166,16 @@ export async function main(ns: NS) {
 
     await PerformFullScan(ns)
 
-    let botnet_states = new Map<string, BotState>();
-    LoadState(ns, botnet_states)
+    // let botnet_states = new Map<string, BotState>();
+    // LoadState(ns, botnet_states)
+
+    let botnet_states = DetermineBotnetState(ns, constants.deploy_file)
 
     const server_sleep_time = 100
     let state_write_trigger = new SimpleCounterTimer(constants.write_state_time, server_sleep_time)
     let rank_target_trigger = new SimpleCounterTimer(constants.rank_target_time, server_sleep_time)
     let purchase_server_trigger = new SimpleCounterTimer(constants.purchase_server_time, server_sleep_time)
+    let buy_hacknets_trigger = new SimpleCounterTimer(constants.buy_hacknets_time, server_sleep_time)
 
     ns.tprint("Server running")
     while(true) {
@@ -153,25 +186,15 @@ export async function main(ns: NS) {
         }
 
         if(purchase_server_trigger.check_trigger()) {
-            const purchase_made = MaybePurchaseOrUpgradeServers(ns)
-            if (purchase_made) {
-                const cur_target = ExtractCurTarget(botnet_states)
-                if(cur_target) {
-                    await DeployNet(ns, botnet_states, cur_target, constants.deploy_file)
-                    SaveState(ns, botnet_states)
-                }
-            }
+            await DoServerPurchase(ns, botnet_states)
         }
 
         if(rank_target_trigger.check_trigger()) {
-            const new_target = SelectBestTarget(ns)
-            const cur_target = ExtractCurTarget(botnet_states)
-            if(cur_target) {
-                if (new_target !== cur_target) {
-                    await DeployNet(ns, botnet_states, new_target, constants.deploy_file)
-                    SaveState(ns, botnet_states)
-                }
-            }
+            await UpdateTarget(ns, botnet_states)
+        }
+
+        if (buy_hacknets_trigger.check_trigger()) {
+            buyAndUpgradeAllHacknetNodes(ns)
         }
     
         await ns.sleep(server_sleep_time);

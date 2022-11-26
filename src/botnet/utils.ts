@@ -32,6 +32,7 @@ function runPortHack(ns: NS, port_hack: string, hostname: string) {
 
 export function maybeGetRoot(ns: NS, hostname: string): boolean {
 	if (ns.hasRootAccess(hostname)) return true;
+	if (ns.getServerNumPortsRequired(hostname) > getAvailablePortHacks(ns).length) return false;
 	for (const port_hack of getAvailablePortHacks(ns)) {
 		ns.tprint(`Running ${port_hack} against ${hostname}`)
 		runPortHack(ns, port_hack, hostname)
