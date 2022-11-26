@@ -221,6 +221,7 @@ export function GetAllHostnames(ns: NS): string[] {
 export async function PerformFullScan(ns: NS): Promise<CrawlInfo[]> {
 
     let known_hosts = crawl2(ns, {hostname: "home", path: []}, 0, [])
+    known_hosts.push({hostname: "home", path: ["home"]})
     // PrintCrawlInfo(ns, local_crawl, "local_crawl")
     while(true) {
         // ns.tprint("Performing remote scan")

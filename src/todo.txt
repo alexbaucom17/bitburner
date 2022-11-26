@@ -1,8 +1,8 @@
 - Get root access for all servers available, not just ones with ram
 - Improve state scanning, auto detect when I have scripts running on other servers instead of fully relying on state file
-- Consider making sub-components below send command to server via ports so that server doesn't need reboot for extraneous script changes (also saves ram, maybe?)
+- Create a 'reset' script that cleans out stale state files after reset and also provides the steps to backdoor the various targets needed
 - Improve script to identify most profitable server
 - Crawl script to find all unique files out in the wild
 - Make script to buy and upgrade hacknet nodes
 - Make util for printing that can easily direct data to terminal when I run commands or put into log file when not
-- Create a 'reset' script that cleans out stale state files after reset and also provides the steps to backdoor the various targets needed
+- Consider making sub-components below send command to server via ports so that server doesn't need reboot for extraneous script changes (also saves ram, maybe?)
