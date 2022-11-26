@@ -175,5 +175,5 @@ export async function main(ns: NS) {
         }
     
         await ns.sleep(server_sleep_time);
-    // }
+    }
 }
