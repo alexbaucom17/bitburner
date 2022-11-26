@@ -1,6 +1,7 @@
 import { NS } from "@ns";
 import * as constants from "constants";
 import {StopNet, CleanNet, DeployNet, ShowStatusNet, BotState, BotStateMap, CleanAll, SelectBestTarget, MaybePurchaseOrUpgradeServers} from "botnet/botnetlib";
+import {PerformFullScan, GetAllHostnames} from "scannet/scanlib"
 
 function GetCommData(ns: NS): string | number | null {
 	let port = ns.getPortHandle(constants.comm_port)
@@ -9,8 +10,8 @@ function GetCommData(ns: NS): string | number | null {
 	return data
 }
 
-function FlushComms(ns: NS): void {
-    let port = ns.getPortHandle(constants.comm_port)
+function FlushComms(ns: NS, port_number: number): void {
+    let port = ns.getPortHandle(port_number)
     while(!port.empty()) port.read()
 }
 
@@ -127,18 +128,23 @@ class SimpleCounterTimer {
 /** @param {NS} ns */
 export async function main(ns: NS) {
 
-    FlushComms(ns)
+    ns.disableLog("sleep")
+    ns.disableLog("scan")
+
+    FlushComms(ns, constants.comm_port)
+    FlushComms(ns, constants.scan_data_port)
+
+    await PerformFullScan(ns)
 
     let botnet_states = new Map<string, BotState>();
     LoadState(ns, botnet_states)
 
-    ns.disableLog("sleep")
-    ns.disableLog("scan")
     const server_sleep_time = 100
     let state_write_trigger = new SimpleCounterTimer(constants.write_state_time, server_sleep_time)
     let rank_target_trigger = new SimpleCounterTimer(constants.rank_target_time, server_sleep_time)
     let purchase_server_trigger = new SimpleCounterTimer(constants.purchase_server_time, server_sleep_time)
 
+    ns.tprint("Server running")
     while(true) {
         await GetAndRunCommands(ns, botnet_states);
 
@@ -169,5 +175,5 @@ export async function main(ns: NS) {
         }
     
         await ns.sleep(server_sleep_time);
-    }
+    // }
 }

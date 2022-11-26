@@ -45,9 +45,9 @@ export async function main(ns: NS) {
         for (const path_step of info.path) {
             out_str = out_str.concat(`${path_step},`)
         }
-        // Remove final - and at new line
+        // Remove final comma and add new line
         out_str = out_str.slice(0, -1).concat("\n")
-        send_str.concat(out_str)
+        send_str = send_str.concat(out_str)
     }
     let port = ns.getPortHandle(comm_port)
     port.write(send_str)

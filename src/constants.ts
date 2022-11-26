@@ -11,3 +11,4 @@ export const min_purchase_server_ram = 16
 export const purchase_server_cost_fraction = 0.1
 export const scan_deploy_file = "/deploy/scanbotv0.js"
 export const scan_data_port = 6
+export const scan_state_file = "/scannet/scan_state.txt"

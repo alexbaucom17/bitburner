@@ -1,5 +1,7 @@
 import { NS } from "@ns";
 import * as constants from "constants"
+import {GetAllHostnames} from "scannet/scanlib"
+import { maybeGetRoot, maxNumPortsHackable, canBotnet } from "botnet/utils";
 
 // Types
 export type BotState = {
@@ -24,71 +26,9 @@ type TargetRankingInfo = {
 }
 
 
-// Private helpers
-
-function getAllPortHacks(): string[] {
-	return [
-		"BruteSSH.exe",
-		"FTPCrack.exe",
-		"relaySMTP.exe",
-		"HTTPWorm.exe",
-		"SQLInject.exe"
-	]
-}
-
-function runPortHack(ns: NS, port_hack: string, hostname: string) {
-	switch (port_hack) {
-		case "BruteSSH.exe":
-			ns.brutessh(hostname)
-			break;
-		case "FTPCrack.exe":
-			ns.ftpcrack(hostname)
-			break;
-		case "relaySMTP.exe":
-			ns.relaysmtp(hostname)
-			break;
-		case "HTTPWorm.exe":
-			ns.httpworm(hostname)
-			break;
-		case "SQLInject.exe":
-			ns.sqlinject(hostname)
-			break;
-	}
-}
-
-function maybeGetRoot(ns: NS, hostname: string): boolean {
-	if (ns.hasRootAccess(hostname)) return true;
-	for (const port_hack of getAvailblePortHacks(ns)) {
-		ns.tprint(`Running ${port_hack} against ${hostname}`)
-		runPortHack(ns, port_hack, hostname)
-	}
-	ns.nuke(hostname)
-	return ns.hasRootAccess(hostname)
-}
-
-function getAvailblePortHacks(ns: NS): string[] {
-	let availableHacks = []
-	for (const hackfile of getAllPortHacks()) {
-		if (ns.fileExists(hackfile)) availableHacks.push(hackfile)
-	}
-	return availableHacks
-}
-
-function maxNumPortsHackable(ns: NS): number {
-	return getAvailblePortHacks(ns).length
-}
-
-function canBotnet(ns: NS, hostname: string, max_ports_hackable: number, min_ram: number = 4): boolean {
-	if (ns.getServerMaxRam(hostname) < min_ram) return false
-	if (ns.hasRootAccess(hostname)) return true
-	const num_ports_needed = ns.getServerNumPortsRequired(hostname)
-	if (num_ports_needed <= max_ports_hackable) return true
-	return false
-}
-
-function GetAllHostnames(ns: NS): string[] {
-	return crawl(ns, "home", 0, [], constants.max_crawl_distance)
-}
+// function GetAllHostnames(ns: NS): string[] {
+// 	return crawl(ns, "home", 0, [], constants.max_crawl_distance)
+// }
 
 function getPotentialBots(ns: NS): string[] {
 	const all_hostnames = GetAllHostnames(ns)
@@ -192,6 +132,7 @@ export function CleanAll(ns: NS, deploy_file: string) {
 export async function DeployNet(ns: NS, states: BotStateMap, target: string, deploy_file: string) {
 	const potential_bots = getPotentialBots(ns)
 	ns.tprint(`Deploying botnet with ${deploy_file} against ${target}...`)
+	if(!maybeGetRoot(ns, target)) throw Error(`Could not get root on ${target}`)
 	for (const hostname of potential_bots) {
         const cur_state = states.get(hostname)
         let needs_update = false
