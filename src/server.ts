@@ -1,7 +1,7 @@
 import { NS } from "@ns";
 import * as constants from "constants";
 import {StopNet, CleanNet, DeployNet, ShowStatusNet, BotState, BotStateMap, SelectBestTarget, 
-    MaybePurchaseOrUpgradeServers, DetermineBotnetState} from "botnet/botnetlib";
+    MaybePurchaseOrUpgradeServers, DetermineBotnetState, getDeployFile} from "botnet/botnetlib";
 import {PerformFullScan, GetAllHostnames} from "scannet/scanlib"
 import {buyAndUpgradeAllHacknetNodes} from "systems/hacknet"
 
@@ -69,8 +69,8 @@ async function RunCommands(ns: NS, botnet_states: BotStateMap, command: string, 
             SaveState(ns, botnet_states)
 			break
 		case "deploy":
-            const target = SelectBestTarget(ns)
-			await DeployNet(ns, botnet_states, target, constants.deploy_file)
+            const target = SelectBestTarget(ns, constants.mode)
+			await DeployNet(ns, botnet_states, target, getDeployFile(constants.mode))
             SaveState(ns, botnet_states)
 			break
 		case "status":
@@ -137,18 +137,18 @@ async function DoServerPurchase(ns: NS, botnet_states: BotStateMap, print: boole
     if (purchase_made) {
         const cur_target = ExtractCurTarget(botnet_states)
         if(cur_target) {
-            await DeployNet(ns, botnet_states, cur_target, constants.deploy_file)
+            await DeployNet(ns, botnet_states, cur_target, getDeployFile(constants.mode))
             SaveState(ns, botnet_states)
         }
     }
 }
 
 async function UpdateTarget(ns: NS, botnet_states: BotStateMap) {
-    const new_target = SelectBestTarget(ns)
+    const new_target = SelectBestTarget(ns, constants.mode)
     const cur_target = ExtractCurTarget(botnet_states)
     if(cur_target) {
         if (new_target !== cur_target) {
-            await DeployNet(ns, botnet_states, new_target, constants.deploy_file)
+            await DeployNet(ns, botnet_states, new_target, getDeployFile(constants.mode))
             SaveState(ns, botnet_states)
         }
     }
@@ -169,7 +169,7 @@ export async function main(ns: NS) {
     // let botnet_states = new Map<string, BotState>();
     // LoadState(ns, botnet_states)
 
-    let botnet_states = DetermineBotnetState(ns, constants.deploy_file)
+    let botnet_states = DetermineBotnetState(ns, getDeployFile(constants.mode))
 
     const server_sleep_time = 100
     let state_write_trigger = new SimpleCounterTimer(constants.write_state_time, server_sleep_time)

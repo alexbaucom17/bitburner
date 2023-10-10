@@ -1,7 +1,20 @@
+Urgent fixes
+- Add enum for switching mode of botnet (joesguns/manual/auto)
+    - Fix issue of home deploy not working
+    - Fix issue of mode not working
+
+Really should do this clean up
+- Make hacknet buyer upgrade existing nodes before buying more.
+    - Need to handle not having max money
+- Make util for printing that can easily direct data to terminal when I run commands or put into log file when not
+- Figure out how to make scanning work better without having to reserve a bunch of ram on every machine
 - Update scanned/hostnames to save in memory instead of via file (or force update file after initial server purchase)
+
+Longer term ideas
+- Consider wrapping bot handling in a class that can manage script running lifetime/scp/state etc
+- Crawl script to find all unique files out in the wild
+    - Work on coding contracts
 - Improve script to identify most profitable server
     - Use more info like grow/weak time and expected change
     - Update botnet to have better scheduler that can target multiple servers at the same time
-- Crawl script to find all unique files out in the wild
-    - Work on coding contracts
-- Make util for printing that can easily direct data to terminal when I run commands or put into log file when not
+    - Update scheduler to avoid running redundant commands on multiple bots (e.g. weaken on 2 bots with same target when 1 would get all the change needed)

@@ -49,6 +49,16 @@ export function rootAllPossibleHosts(ns: NS) {
     all_hostnames.forEach(hostname => maybeGetRoot(ns, hostname))
 }
 
+export function getDeployFile(mode: constants.BotnetMode): string {
+    if (mode === constants.BotnetMode.AUTO || mode === constants.BotnetMode.MANUAL) {
+        return constants.deploy_file
+    }
+    if (mode === constants.BotnetMode.RANK_MAX) {
+        return constants.rank_max_file
+    }
+    return "null"
+}
+
 // Single bot functions
 function StopBot(ns: NS, hostname: string, botnet_file: string) {
 	const files = ns.ls(hostname, botnet_file)
@@ -184,7 +194,11 @@ function ScoreHost(ns: NS, hostname: string): TargetRankingInfo {
 
 }
 
-export function SelectBestTarget(ns: NS): string {
+export function SelectBestTarget(ns: NS, mode: constants.BotnetMode): string {
+    if (mode === constants.BotnetMode.MANUAL) return constants.manual_target
+    if (mode === constants.BotnetMode.RANK_MAX) return constants.rank_max_target
+
+    ns.tprint("ASDFASDFASDF")
     const all_hosts = GetAllHostnames(ns)
     let best: TargetRankingInfo = {hostname: "", score: 0, hackInfo: getHackInfo(ns, "n00dles")}
 	for (const host of all_hosts) {
@@ -233,7 +247,7 @@ function MaybeUpgradeServers(ns: NS, current_servers: string[]) : boolean {
     ns.print("Upgrading servers")
     for (const hostname of current_servers) {
         ns.print(`"Deleing server ${hostname}`)
-        StopBot(ns, hostname, constants.deploy_file)
+        StopBot(ns, hostname, getDeployFile(constants.mode))
         const ok = ns.deleteServer(hostname)
         if (!ok) ns.print(`Failed to delete ${hostname}`)
     }

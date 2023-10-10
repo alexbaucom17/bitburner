@@ -1,3 +1,7 @@
+import {HackMode} from "v2/interfaces"
+
+// TODO: Clean up this file
+
 export enum BotnetMode {
     AUTO,
     MANUAL,
@@ -35,3 +39,8 @@ export const files_to_clean = [
     "/deploy/rank_max.js",
 ]
 export const mode = BotnetMode.AUTO
+
+export const hack_files = new Map<HackMode, string>([
+    [HackMode.MaxMoney, "/deploy/botnetv0.js"],
+    [HackMode.MaxRank, "/deploy/rank_max.js"],
+])
