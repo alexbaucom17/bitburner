@@ -15,7 +15,7 @@ function SeenHostname(all_info: CrawlInfo[], hostname: string ): boolean {
     return false
 }
 
-function crawl2(ns: NS, cur_info: CrawlInfo, depth: number, prev_seen: CrawlInfo[], max_depth: number = 10): CrawlInfo[] {
+export function crawl2(ns: NS, cur_info: CrawlInfo, depth: number, prev_seen: CrawlInfo[], max_depth: number = 10): CrawlInfo[] {
 	if (depth > max_depth) return [];
 	let new_seen: CrawlInfo[] = []
 
@@ -235,7 +235,7 @@ export async function PerformFullScan(ns: NS): Promise<CrawlInfo[]> {
     return known_hosts
 }
 
-// export async function main(ns: NS) {
-//     const all_info = await PerformFullScan(ns)
-//     PrintCrawlInfo(ns, all_info, "all_info")
-// }
+export async function main(ns: NS) {
+    const all_info = await PerformFullScan(ns)
+    PrintCrawlInfo(ns, all_info, "all_info")
+}

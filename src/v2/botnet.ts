@@ -1,6 +1,7 @@
 import { NS, ProcessInfo } from "@ns";
 import { mode, known_files, scan_deploy_file, hack_files } from "v2/constants2";
 import {Host, BotMode, HackMode, HackModeInfo, ScanModeInfo, BotModeInfo, ActiveBotModeInfo} from "v2/interfaces";
+import { crawl2, CrawlInfo } from "/scannet/scanlib";
 
 // Helper functions
 function getAllPortHacks(): string[] {
@@ -120,7 +121,7 @@ class Bot {
         this._ns = ns
         this._host = host
         this._has_root = maybeGetRoot(ns, host.id)
-        this._active_modes = CollectActiveModes(this._ns, this._host)
+        this._active_modes = [] //CollectActiveModes(this._ns, this._host)
         if (this._has_root) {
             this._supported_modes = GenerateSupportedModes(this._ns, this._host)
         } else {
@@ -131,17 +132,22 @@ class Bot {
 
     public executeMode(mode_info: BotModeInfo): boolean {
         if(!this._supported_modes.includes(mode_info.mode)) return false
+
         switch(mode_info.mode) {
             case BotMode.Hack:
                 if (mode_info.hack_info === undefined) throw Error("Missing hack mode info")
+
                 const pid = this.startHack(mode_info.hack_info)
-                if (pid)
-                this._active_modes.push({bot_mode: mode_info, pid: pid})
+                if (pid) this._active_modes.push({bot_mode: mode_info, pid: pid}) 
+
                 return true
-                case BotMode.Scan:
+
+            case BotMode.Scan:
                 if (mode_info.scan_info === undefined) throw Error("Missing scan mode info")
+
                 this.scan(mode_info.scan_info)
                 return true
+            
             default:
                 throw Error(`Unsupported mode ${mode_info.mode}`)
         }
@@ -198,4 +204,75 @@ class Bot {
         }
         return out
     }
+}
+
+class Botnet {
+    public bots: Bot[]
+    private _ns: NS
+
+    constructor(ns: NS) {
+        this._ns = ns
+        this.bots = []
+    }
+
+    public hack(target: string) {
+        const info = {
+            mode: BotMode.Hack,
+            hack_info: {
+                hack_mode: HackMode.MaxMoney,
+                target: target,
+                threads: undefined,
+                file: undefined
+            },
+            scan_info: undefined
+        }
+        for (const bot of this.bots) {
+            bot.executeMode(info)
+        }
+    }
+
+    public print() {
+        for (const bot of this.bots) {
+            this._ns.tprint(bot.debug_string())
+        }
+    }
+
+    public killall() {
+        for (const bot of this.bots) {
+            bot.stopMode(BotMode.Hack)
+            bot.stopMode(BotMode.Scan)
+        }
+    }
+}
+
+
+async function BootstrapBotnet(ns: NS): Promise<Botnet> {
+
+    let local_hosts = crawl2(ns, {hostname: "home", path: []}, 0, [])
+    local_hosts.push({hostname: "home", path: ["home"]})
+
+    let net = new Botnet(ns)
+    for (const crawl_info of local_hosts) {
+        net.bots.push(new Bot(ns, {id: crawl_info.hostname, children: [], parent: "unk"}))
+    }
+    return net
+}
+
+/** @param {NS} ns */
+export async function main(ns: NS) {
+
+
+    ns.tprint("Server v2 starting!")
+
+    let botnet = await BootstrapBotnet(ns)
+    ns.tprint("Botnet Bootstrap Complete!")
+
+    ns.tprint("Killing all bot activity")
+    botnet.killall()
+
+    botnet.hack("joesguns")
+    ns.tprint("Botnet hacking joesguns")
+
+    botnet.print()
+
 }
