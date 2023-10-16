@@ -1,5 +1,6 @@
 import { NS, ProcessInfo } from "@ns";
 import { mode, known_files, scan_deploy_file, hack_files } from "v2/constants2";
+import * as constants from "v2/constants2"
 import {Host, BotMode, HackMode, HackModeInfo, ScanModeInfo, BotModeInfo, ActiveBotModeInfo} from "v2/interfaces";
 import { crawl2, CrawlInfo } from "/scannet/scanlib";
 
@@ -71,7 +72,7 @@ export function GetHackFileForMode(mode_info: HackModeInfo): string {
 function InitializeRemoteFiles(ns: NS, hostname: string, files: string[]) {
     let to_copy: string[] = []
     for (const file of files) {
-        if (!ns.ls(hostname, file)) to_copy.push(file)
+        if (ns.ls(hostname, file).length === 0) to_copy.push(file)
     }
     ns.scp(to_copy, hostname)
 }
@@ -110,11 +111,11 @@ function GenerateSupportedModes(ns: NS, host: Host): BotMode[] {
 // Bot class
 class Bot {
 
-    private _host: Host
-    private _has_root: boolean
-    private _supported_modes: BotMode[]
-    private _active_modes: ActiveBotModeInfo[]
-    private _ns: NS
+    protected _host: Host
+    protected _has_root: boolean
+    protected _supported_modes: BotMode[]
+    protected _active_modes: ActiveBotModeInfo[]
+    protected _ns: NS
 
     // Get root if needed, send all files if needed, delete any files not needed, collect state of any running processes 
     constructor(ns: NS, host: Host) {
@@ -162,14 +163,21 @@ class Bot {
         }
     }
 
+    public killall() {
+        this._ns.killall(this._host.id, true)
+    }
+
     // Functions that the bot provides
     protected startHack(info: HackModeInfo): number | null {
         const file = GetHackFileForMode(info)
+        if (this._ns.ls(this._host.id, file).length === 0) throw Error(`${this._host.id} missing file ${file}`)
         const max_threads = ComputeThreads(this._ns, this._host.id, file)
         let use_threads = max_threads
         if (max_threads === 0) return null
         if (info.threads !== undefined) use_threads = Math.min(info.threads, max_threads)
+        this._ns.tprint(`Starting hack from ${this._host.id} with info ${info.hack_mode}. Expected file: ${file}. Threads: ${use_threads}` )
         const pid = this._ns.exec(file, this._host.id, use_threads, info.target)
+        if (pid === 0) throw Error(`Unable to start hack for ${this._host.id}`)
         return pid
     }
     protected scan(info: ScanModeInfo) {
@@ -194,6 +202,7 @@ class Bot {
         let out = ""
         out += `Host: ${this._host.id}\n`
         out += `  Root: ${this._has_root}\n`
+        out += `  Connections: ${this._host.connections}\n`
         out += "  Active modes:\n"
         for (const active_mode of this._active_modes) {
             out += `    ${active_mode.pid}: ${active_mode.bot_mode.mode}\n`
@@ -203,6 +212,20 @@ class Bot {
             }
         }
         return out
+    }
+}
+
+class HomeBot extends Bot {
+    protected startHack(info: HackModeInfo): number | null {
+        const file = GetHackFileForMode(info)
+        this._ns.tprint(`Starting hack from ${this._host.id} with info ${info.hack_mode}. Expected file: ${file}` )
+        const max_threads = ComputeThreads(this._ns, this._host.id, file, constants.home_reserved_ram)
+        let use_threads = max_threads
+        if (max_threads === 0) return null
+        if (info.threads !== undefined) use_threads = Math.min(info.threads, max_threads)
+        const pid = this._ns.run(file, use_threads, info.target)
+        if (pid === 0) throw Error(`Unable to start hack for ${this._host.id}`)
+        return pid
     }
 }
 
@@ -239,8 +262,7 @@ class Botnet {
 
     public killall() {
         for (const bot of this.bots) {
-            bot.stopMode(BotMode.Hack)
-            bot.stopMode(BotMode.Scan)
+            bot.killall()
         }
     }
 }
@@ -248,12 +270,18 @@ class Botnet {
 
 async function BootstrapBotnet(ns: NS): Promise<Botnet> {
 
-    let local_hosts = crawl2(ns, {hostname: "home", path: []}, 0, [])
+    const max_depth = 1
+    let local_hosts = crawl2(ns, {hostname: "home", path: []}, 0, [], max_depth)
     local_hosts.push({hostname: "home", path: ["home"]})
 
     let net = new Botnet(ns)
     for (const crawl_info of local_hosts) {
-        net.bots.push(new Bot(ns, {id: crawl_info.hostname, children: [], parent: "unk"}))
+        const connections = ns.scan(crawl_info.hostname)
+        if (crawl_info.hostname === "home") {
+            net.bots.push(new HomeBot(ns, {id: crawl_info.hostname, connections: connections}))
+        } else {
+            net.bots.push(new Bot(ns, {id: crawl_info.hostname, connections: connections}))
+        }
     }
     return net
 }

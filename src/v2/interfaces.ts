@@ -1,7 +1,6 @@
 export interface Host {
     id: string
-    children: string[]
-    parent: string
+    connections: string[]
 }
 export enum BotMode {
     Hack,
