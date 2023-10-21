@@ -1,35 +1,8 @@
-Urgent fixes
-- Add enum for switching mode of botnet (joesguns/manual/auto)
-    - Fix issue of home deploy not working
-    - Fix issue of mode not working
-
-Really should do this clean up
-- Make hacknet buyer upgrade existing nodes before buying more.
-    - Need to handle not having max money
-- Make util for printing that can easily direct data to terminal when I run commands or put into log file when not
-- Figure out how to make scanning work better without having to reserve a bunch of ram on every machine
-- Update scanned/hostnames to save in memory instead of via file (or force update file after initial server purchase)
-
-Longer term ideas
-- Consider wrapping bot handling in a class that can manage script running lifetime/scp/state etc
-- Crawl script to find all unique files out in the wild
-    - Work on coding contracts
-- Improve script to identify most profitable server
-    - Use more info like grow/weak time and expected change
-    - Update botnet to have better scheduler that can target multiple servers at the same time
-    - Update scheduler to avoid running redundant commands on multiple bots (e.g. weaken on 2 bots with same target when 1 would get all the change needed)
-
-
-Brainstorming ideas after having been away for a while
-- I remember managing state of the net was tricky
-    - maybe have each bot drop a file on its machine with the current state
-    - Update this semi regularly and then it can be used to restart the bot in the same state if needed
-    - Can also be read by control machine to get status or at least have enough info to query for status
-    - Missing state file can mean the bot isn't active or is in a bad state, server can reboot the bot freely
-- Having a bot handling class that manages all this info on the server side seems good, but probably can start simpler than I was previously aiming
-- Regular scans and crawls were also tricky if I remember correctly, will need to think more about this
-- Use json serialization (example: https://dev.to/hansott/simple-way-to-serialize-objects-to-json-in-typescript-27f5) instead of custom string serialization
-
-- [Done] Short term goal: get v2 able to bootstrap local net (non-recursive) and run static hack via Bot class
-- Medium term goal: use v2 bot class scan/hack functions to iteratively build out network
-- After that, can start thinking about adding more fancy features and hopefully cleaning up old code
+Tasks
+- Add server purchase/upgrading
+- Add regular rescan (spot to add other periodic stuff in the future)
+- Add hacknet buyer
+- Add state serialization for each server
+- Improve hacking efficiency/coordination
+- Clean up/delete old code
+- Scan all servers for files/coding contracts
