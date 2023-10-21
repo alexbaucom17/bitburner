@@ -11,21 +11,24 @@ export enum HackMode {
     MaxRank,
     Custom
 }
-export interface HackModeInfo {
+export interface HackModeRequest {
     hack_mode: HackMode
     target: string
     threads: number | undefined
     file: string | undefined
+}
+export interface ActiveHackModeInfo {
+    hack_mode: HackMode
+    target: string
+    threads: number
+    file: string
+    pid: number
 }
 export interface ScanModeInfo {
     prioritize: boolean
 }
 export interface BotModeInfo {
     mode: BotMode
-    hack_info: HackModeInfo | undefined
+    hack_info: HackModeRequest | undefined
     scan_info: ScanModeInfo | undefined
-}
-export interface ActiveBotModeInfo {
-    bot_mode: BotModeInfo
-    pid: number
 }
