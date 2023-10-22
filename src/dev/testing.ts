@@ -1,46 +1,41 @@
 import { NS } from "@ns";
+import { Host } from "v2/interfaces"
 
-const max_levels = 199
-const max_ram = 6
-const max_cores = 15
-const max_money_frac = 0.01
-
-function computeFullUpgradeCost(ns: NS, id: number): number {
-    const core_upgrade_cost = ns.hacknet.getCoreUpgradeCost(id, max_cores)
-    const ram_upgrade_cost = ns.hacknet.getRamUpgradeCost(id, max_ram)
-    const level_upgrade_cost = ns.hacknet.getLevelUpgradeCost(id, max_levels)
-    // ns.tprint(`core_upgrade_cost: ${core_upgrade_cost}, ram_upgrade_cost: ${ram_upgrade_cost}, level_upgrade_cost: ${level_upgrade_cost}`)
-    return core_upgrade_cost + ram_upgrade_cost + level_upgrade_cost
+function SeenHostname(all_info: Host[], hostname: string ): boolean {
+    for (const info of all_info) {
+        if (info.id === hostname) return true
+    }
+    return false
 }
 
-function doFullUpgrade(ns: NS, id: number) {
-    ns.hacknet.upgradeCore(id, max_cores)
-    ns.hacknet.upgradeLevel(id, max_levels)
-    ns.hacknet.upgradeRam(id, max_ram)
+function crawl3(ns: NS, cur_info: Host, depth: number, prev_seen: Host[], max_depth: number = 10): Host[] {
+	if (depth > max_depth) return [];
+	let new_seen: Host[] = []
+
+	for (const server of cur_info.connections) {
+        if (server == "home") continue
+		if (SeenHostname(prev_seen, server)) continue
+		if (SeenHostname(new_seen, server)) continue
+        const new_info: Host = {id: server, connections: ns.scan(server)}
+		new_seen.push(new_info)
+		const tmp_seen = prev_seen.concat(new_seen)
+		new_seen = new_seen.concat(crawl3(ns, new_info, depth + 1, tmp_seen, max_depth))
+	}
+	return new_seen
 }
 
-function maybeBuyAndUpgradeNewNode(ns: NS): boolean {
-    const purchase_cost = ns.hacknet.getPurchaseNodeCost()
-    if (purchase_cost > ns.getServerMoneyAvailable("home") * max_money_frac) return false
-    const id = ns.hacknet.purchaseNode()
-    if (computeFullUpgradeCost(ns, id) > ns.getServerMoneyAvailable("home") * max_money_frac) return false
-    doFullUpgrade(ns, id)
-    return true
-}
 
 /** @param {NS} ns */
 export async function main(ns: NS) {
 
-    // while(true) {
-    //     const finished = maybeBuyAndUpgradeNewNode(ns)
-    //     if(finished) {
-    //         ns.tprint(`Purchased and upgraded node. Now have ${ns.hacknet.numNodes()} nodes`)
-    //     }
-    //     else {
-    //         ns.tprint("Unable to fully purchase/upgrade node")
-    //         break
-    //     }
-    // }
+    const depth = 20
+
+    const hostname = ns.getHostname()
+    const start_host: Host = {id: hostname, connections: ns.scan(hostname)}
+    let all_info = crawl3(ns, start_host, 0, [], depth)
+    all_info.push(start_host)
+    ns.tprint(`Found ${all_info.length} servers`)
+
 }
 
 

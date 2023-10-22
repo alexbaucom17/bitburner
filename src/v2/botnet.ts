@@ -501,7 +501,7 @@ class Botnet {
 
 async function BringupBotnet(ns: NS): Promise<Botnet> {
 
-    const max_depth = 10
+    const max_depth = 20
     const home_host: Host = {id: "home", connections: ns.scan("home")}
     let local_hosts = crawl3(ns, home_host, 0, [], max_depth)
     local_hosts.push(home_host)
@@ -520,9 +520,9 @@ async function BringupBotnet(ns: NS): Promise<Botnet> {
     ns.tprint(`Found ${net.bots.length} hosts from bootstrap`)
 
     // Now use scanning to find the rest of the hosts
-    ns.tprint("Starting full network scan...")
-    await net.full_scan()
-    ns.tprint(`Found ${net.bots.length} host after full scan`)
+    // ns.tprint("Starting full network scan...")
+    // await net.full_scan()
+    // ns.tprint(`Found ${net.bots.length} host after full scan`)
 
     return net
 }
