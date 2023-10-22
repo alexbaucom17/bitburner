@@ -1,8 +1,6 @@
 Tasks
-- Add server purchase/upgrading
-- Add regular rescan (spot to add other periodic stuff in the future)
-- Add hacknet buyer
 - Add state serialization for each server
+  - Recover known servers during restart for faster boot
 - Improve hacking efficiency/coordination
 - Clean up/delete old code
 - Scan all servers for files/coding contracts

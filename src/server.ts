@@ -83,7 +83,7 @@ async function RunCommands(ns: NS, botnet_states: BotStateMap, command: string, 
             await UpdateTarget(ns, botnet_states)
             break
         case "hacknet":
-            buyAndUpgradeAllHacknetNodes(ns)
+            buyAndUpgradeAllHacknetNodes(ns, 0.1)
             break
     }
 }
@@ -194,7 +194,7 @@ export async function main(ns: NS) {
         }
 
         if (buy_hacknets_trigger.check_trigger()) {
-            buyAndUpgradeAllHacknetNodes(ns)
+            buyAndUpgradeAllHacknetNodes(ns, 0.1)
         }
     
         await ns.sleep(server_sleep_time);

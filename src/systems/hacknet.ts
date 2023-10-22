@@ -1,42 +1,62 @@
 import { NS } from "@ns";
 
-const max_levels = 199
+const max_levels = 200
 const max_ram = 6
-const max_cores = 15
-const max_money_frac = 0.01
+const max_cores = 16
 
 function computeFullUpgradeCost(ns: NS, id: number): number {
-    const core_upgrade_cost = ns.hacknet.getCoreUpgradeCost(id, max_cores)
-    const ram_upgrade_cost = ns.hacknet.getRamUpgradeCost(id, max_ram)
-    const level_upgrade_cost = ns.hacknet.getLevelUpgradeCost(id, max_levels)
+    const stats = ns.hacknet.getNodeStats(id)
+    const core_upgrade_cost = ns.hacknet.getCoreUpgradeCost(id, max_cores - stats.cores)
+    const ram_upgrade_cost = ns.hacknet.getRamUpgradeCost(id, max_ram - stats.ram)
+    const level_upgrade_cost = ns.hacknet.getLevelUpgradeCost(id, max_levels - stats.level)
     // ns.tprint(`core_upgrade_cost: ${core_upgrade_cost}, ram_upgrade_cost: ${ram_upgrade_cost}, level_upgrade_cost: ${level_upgrade_cost}`)
     return core_upgrade_cost + ram_upgrade_cost + level_upgrade_cost
 }
 
 function doFullUpgrade(ns: NS, id: number) {
-    ns.hacknet.upgradeCore(id, max_cores)
-    ns.hacknet.upgradeLevel(id, max_levels)
-    ns.hacknet.upgradeRam(id, max_ram)
+    const stats = ns.hacknet.getNodeStats(id)
+    ns.hacknet.upgradeCore(id, max_cores - stats.cores)
+    ns.hacknet.upgradeLevel(id, max_levels - stats.level)
+    ns.hacknet.upgradeRam(id, max_ram - stats.ram)
+    ns.tprint(`Fully upgraded hacknet node ${id}`)
 }
 
-function maybeBuyAndUpgradeNewNode(ns: NS): boolean {
-    const purchase_cost = ns.hacknet.getPurchaseNodeCost()
-    if (purchase_cost > ns.getServerMoneyAvailable("home") * max_money_frac) return false
-    const id = ns.hacknet.purchaseNode()
-    if (computeFullUpgradeCost(ns, id) > ns.getServerMoneyAvailable("home") * max_money_frac) return false
+function tryFullUpgrade(ns: NS, id: number, cost_fraction: number): boolean {
+    if (computeFullUpgradeCost(ns, id) > ns.getServerMoneyAvailable("home") * cost_fraction) return false
     doFullUpgrade(ns, id)
     return true
 }
 
+function maybeBuyAndUpgradeNewNode(ns: NS, cost_fraction: number): boolean {
+    const purchase_cost = ns.hacknet.getPurchaseNodeCost()
+    if (purchase_cost > ns.getServerMoneyAvailable("home") * cost_fraction) return false
+    const id = ns.hacknet.purchaseNode()
+    ns.tprint(`Purchased hacknet node ${id}`)
+    return tryFullUpgrade(ns, id, cost_fraction)
+
+}
+
+function isFullyUpgraded(ns: NS, id: number): boolean {
+    const stats = ns.hacknet.getNodeStats(id)
+    if (stats.cores < max_cores || stats.level < max_levels || stats.ram < max_ram) return false
+    return true
+}
+
 /** @param {NS} ns */
-export function buyAndUpgradeAllHacknetNodes(ns: NS) {
-    while(true) {
-        const finished = maybeBuyAndUpgradeNewNode(ns)
-        if(finished) {
-            ns.tprint(`Purchased and upgraded hacknet node. Now have ${ns.hacknet.numNodes()} nodes`)
+export function buyAndUpgradeAllHacknetNodes(ns: NS, cost_fraction: number) {
+    // Make sure existing nodes are fully upgraded before buying new ones
+    for (let id = 0; id < ns.hacknet.numNodes(); id++) {
+        if (!isFullyUpgraded(ns, id)) {
+            const full_upgrade = tryFullUpgrade(ns, id, cost_fraction)
+            if (!full_upgrade) return
         }
-        else {
-            break
+    }
+
+    // Buy new nodes
+    for (let id = ns.hacknet.numNodes(); id < ns.hacknet.maxNumNodes(); id++) {
+        const full_upgrade = maybeBuyAndUpgradeNewNode(ns, cost_fraction)
+        if(!full_upgrade) {
+            return
         }
     }
 }
