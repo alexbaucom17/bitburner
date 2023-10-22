@@ -32,3 +32,16 @@ export interface BotModeInfo {
     hack_info: HackModeRequest | undefined
     scan_info: ScanModeInfo | undefined
 }
+export type HackInfo = {
+    maxMoney: number;
+    curMoney: number;
+    minSecurity: number;
+    curSecurity: number;
+    reqHackLevel: number;
+};
+
+export type TargetRankingInfo = {
+    hostname: string;
+    hackInfo: HackInfo;
+    score: number
+}

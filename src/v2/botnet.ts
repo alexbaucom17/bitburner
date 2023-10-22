@@ -1,9 +1,8 @@
 import { NS, ProcessInfo } from "@ns";
 import * as constants from "v2/constants2"
-import {Host, BotMode, HackMode, HackModeRequest, ScanModeInfo, BotModeInfo, ActiveHackModeInfo} from "v2/interfaces";
+import {Host, BotMode, HackMode, HackModeRequest, ScanModeInfo, BotModeInfo, ActiveHackModeInfo, HackInfo, TargetRankingInfo} from "v2/interfaces";
 import {buyAndUpgradeAllHacknetNodes} from "systems/hacknet"
 import {buyAndUpgradeServers} from "systems/server_purchase"
-import {SelectBestTarget} from "botnet/botnetlib";
 
 // Helper functions
 function getAllPortHacks(): string[] {
@@ -254,6 +253,35 @@ class Bot {
         }
         return out
     }
+
+    public getHackInfo(): HackInfo {
+        return {
+            maxMoney: this._ns.getServerMaxMoney(this.host().id),
+            curMoney: this._ns.getServerMoneyAvailable(this.host().id),
+            minSecurity: this._ns.getServerMinSecurityLevel(this.host().id),
+            curSecurity: this._ns.getServerSecurityLevel(this.host().id),
+            reqHackLevel: this._ns.getServerRequiredHackingLevel(this.host().id),
+        }
+    }
+
+    public ScoreHackQuality(): TargetRankingInfo {
+        const hackInfo = this.getHackInfo()
+        const myHackLevel = this._ns.getHackingLevel()
+    
+        const buildReturn = (score: number): TargetRankingInfo => {
+            return {
+                hostname: this.host().id,
+                hackInfo: hackInfo,
+                score: score
+            }
+        }
+    
+        const hackLevelThresh = myHackLevel / constants.server_ranking_divisor
+        if (hackInfo.reqHackLevel > hackLevelThresh || !this.has_root()) return buildReturn(0)
+        return buildReturn(hackInfo.maxMoney)
+    
+    }
+    
 }
 
 class HomeBot extends Bot {
@@ -297,7 +325,7 @@ class Botnet {
     }
 
     public hack_auto() {
-        const best_target = SelectBestTarget(this._ns, constants.BotnetMode.AUTO)
+        const best_target = this._SelectBestTarget()
         const request = {
             hack_mode: HackMode.MaxMoney,
             target: best_target,
@@ -452,6 +480,22 @@ class Botnet {
         // Restart hack
         if (this._hack_running) this._start_hack(this._active_hack_request)
     }
+
+    private _SelectBestTarget(): string {
+        let best_target = undefined
+        let best_score = 0
+        for (const bot of this.bots) {
+            const score_results = bot.ScoreHackQuality()
+            if (score_results.score > best_score) {
+                best_target = score_results
+                best_score = score_results.score
+            }
+        }
+        if(best_target === undefined) throw Error("Could not find any valid targets")
+
+        this._ns.tprint(`Best target ${best_target.hostname} - ${best_target.score} {level_req: ${best_target.hackInfo.reqHackLevel}, max_money: ${best_target.hackInfo.maxMoney}}`)
+        return best_target.hostname
+    }
 }
 
 
@@ -527,8 +571,8 @@ export async function main(ns: NS) {
     ns.tprint("Killing all bot activity")
     botnet.killall()
 
-    // botnet.hack_auto()
-    botnet.hack_manual("joesguns")
+    botnet.hack_auto()
+    // botnet.hack_manual("joesguns")
     ns.tprint("Botnet hacking started")
 
     // botnet.print()

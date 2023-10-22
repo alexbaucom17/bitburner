@@ -30,9 +30,9 @@ function MaybePurchaseNewServers(ns: NS, min_ram: number, cost_fraction: number)
 }
 
 function MaybeUpgradeServers(ns: NS, current_servers: string[], cost_fraction: number) : boolean {
-    const cur_ram = ns.getServerMaxRam(current_servers[0])
+    const cur_ram = ns.getServer(current_servers[0]).maxRam
     const max_ram = ComputeMaxRam(ns, cur_ram, cost_fraction)
-    if(max_ram === 0) return false
+    if(max_ram <= cur_ram) return false
     ns.tprint("Upgrading servers")
     for (const hostname of current_servers) {
         ns.tprint(`"Deleing server ${hostname}`)
