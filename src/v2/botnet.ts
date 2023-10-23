@@ -1,6 +1,6 @@
-import { NS, ProcessInfo } from "@ns";
+import { NS } from "@ns";
 import * as constants from "v2/constants2"
-import {Host, BotMode, HackMode, HackModeRequest, ScanModeInfo, BotModeInfo, ActiveHackModeInfo, HackInfo, TargetRankingInfo} from "v2/interfaces";
+import {Host, HackMode, HackModeRequest, ActiveHackModeInfo, HackInfo, TargetRankingInfo} from "v2/interfaces";
 import {buyAndUpgradeAllHacknetNodes} from "systems/hacknet"
 import {buyAndUpgradeServers} from "systems/server_purchase"
 
@@ -72,7 +72,6 @@ function GetHackFileForMode(request: HackModeRequest): string {
 function InitializeRemoteFiles(ns: NS, hostname: string, files: string[]) {
     let to_copy: string[] = []
     for (const file of files) {
-        // if (ns.ls(hostname, file).length === 0) to_copy.push(file)
         to_copy.push(file)
     }
     ns.scp(to_copy, hostname)
@@ -101,44 +100,16 @@ function crawl3(ns: NS, cur_info: Host, depth: number, prev_seen: Host[], max_de
 	return new_seen
 }
 
-function CollectActiveModes(ns: NS, host: Host) : ActiveHackModeInfo[] {
-    const active_processes = ns.ps(host.id)
-    let active_modes: ActiveHackModeInfo[] = []
-    for (const process of active_processes) {
-        if (!constants.known_files.includes(process.filename)) {
-            throw Error(`Found unknown file ${process.filename} running on ${host.id}`)
-        }
-        if (typeof process.args[0] !== "string") throw Error(`Found unknown arg for process ${process.filename}: ${process.args[0]}`)
-
-        // Recreate this as custom hack right now since I have all the info
-        // TODO: Figure out a way to communicate the original mode, maybe as arg to the scrpit?
-        active_modes.push(
-            {
-                hack_mode: HackMode.Custom,
-                target: process.args[0],
-                file: process.filename,
-                threads: process.threads,
-                pid: process.pid
-            })
-    }
-    return active_modes
-}
-
-function GenerateSupportedModes(ns: NS, host: Host): BotMode[] {
-    // For now just generate all modes
-    return [BotMode.Hack, BotMode.Scan]
-}
-
-
 // Bot class
 class Bot {
 
     protected _host: Host
     protected _has_root: boolean
-    protected _supported_modes: BotMode[]
-    protected _active_modes: ActiveHackModeInfo[]
     protected _ns: NS
+
+    // TODO: Just drop to use hack mode info presence for hack running check
     protected _hack_running: boolean
+    protected _active_hack_info?: ActiveHackModeInfo
 
     // Get root if needed, send all files if needed, delete any files not needed, collect state of 
     // any running processes 
@@ -146,56 +117,21 @@ class Bot {
         this._ns = ns
         this._host = host
         this._has_root = maybeGetRoot(ns, host.id)
+        this._ns.scp(constants.known_files, this._host.id)
         this._hack_running = false
-        this._active_modes = [] //CollectActiveModes(this._ns, this._host)
-        if (this._has_root) {
-            this._supported_modes = GenerateSupportedModes(this._ns, this._host)
-        } else {
-            this._supported_modes = []
-        }
-        InitializeRemoteFiles(ns, this._host.id, constants.known_files)
-    }
-
-    // TODO: Clean up mode execution and active modes. Seems like overkill for current use.
-    public executeMode(mode_info: BotModeInfo): boolean {
-        if(!this._supported_modes.includes(mode_info.mode)) return false
-
-        switch(mode_info.mode) {
-            case BotMode.Hack:
-                if (mode_info.hack_info === undefined) throw Error("Missing hack mode info")
-                if (this._hack_running) return true
-
-                const active_mode = this.startHack(mode_info.hack_info)
-                if (active_mode) {
-                    this._active_modes.push(active_mode) 
-                    return true
-                }
-
-                return false
-
-            case BotMode.Scan:
-                if (mode_info.scan_info === undefined) throw Error("Missing scan mode info")
-
-                return this.scan(mode_info.scan_info)
-            
-            default:
-                throw Error(`Unsupported mode ${mode_info.mode}`)
-        }
-    }
-
-    public stopMode(mode: BotMode) {
-        if (mode === BotMode.Hack){
-            for (let i = this._active_modes.length - 1; i >= 0; i--) {
-                this._ns.kill(this._active_modes[i].pid)
-                this._active_modes.splice(i, 1)
-            }
-            this._hack_running = false
-        }
+        this._active_hack_info = undefined
     }
 
     public killall() {
         this._ns.killall(this._host.id, true)
         this._hack_running = false
+    }
+
+    public stopHack() {
+        if (this._hack_running && this._active_hack_info) {
+            this._ns.kill(this._active_hack_info.pid)
+            this._hack_running = false
+        }
     }
 
     // Functions that can be overridden for home bot
@@ -207,32 +143,32 @@ class Bot {
     }
 
     // Functions that the bot provides
-    private startHack(request: HackModeRequest): ActiveHackModeInfo | null {
+    public startHack(request: HackModeRequest): boolean {
+        if (this._hack_running) return true
+
+        // Verify file is present
         const file = GetHackFileForMode(request)
         if (this._ns.ls(this._host.id, file).length === 0) throw Error(`${this._host.id} missing file ${file}`)
+
+        // Determine how many threads to use
         const max_threads = this._compute_max_threads(file)
         let use_threads = max_threads
-        if (max_threads === 0) return null
+        if (max_threads === 0) return false
         if (request.threads !== undefined) use_threads = Math.min(request.threads, max_threads)
-        // this._ns.tprint(`Starting hack from ${this._host.id} with info ${request.hack_mode}. Expected file: ${file}. Threads: ${use_threads}` )
+        
+        // Run the file
         const pid = this._run_hack_file(file, use_threads, request.target)
+        // this._ns.tprint(`Starting hack from ${this._host.id} with info ${request.hack_mode}. Expected file: ${file}. Threads: ${use_threads}` )
+
+        // Verify it worked and update state
         if (pid === 0) throw Error(`Unable to start hack for ${this._host.id}`)
         this._hack_running = true
-        return {hack_mode: request.hack_mode, target: request.target, threads: use_threads, file: file, pid: pid}
-    }
-    private scan(info: ScanModeInfo): boolean {
-        const hostname = this._host.id
-        const available_ram = this._ns.getServerMaxRam(hostname) - this._ns.getServerUsedRam(hostname)
-        const needed_ram = this._ns.getScriptRam(constants.scan_deploy_file, hostname)
-        if (available_ram < needed_ram) {
-            if (info.prioritize) {
-                this.killall()
-            } else {
-                throw Error(`${hostname} only has ${available_ram} ram available but script needs ${needed_ram}`)
-            }
-        }
-        const pid = this._ns.exec(constants.scan_deploy_file, hostname, 1)
-        if (pid === 0) return false
+        this._active_hack_info = {
+            hack_mode: request.hack_mode, 
+            target: request.target, 
+            threads: use_threads, 
+            file: file, 
+            pid: pid }
         return true
 
     }
@@ -240,17 +176,16 @@ class Bot {
     // Bot information
     public host(): Host { return this._host}
     public has_root(): boolean { return this._has_root}
-    public supported_modes(): BotMode[] { return this._supported_modes}
-    public active_modes(): ActiveHackModeInfo[] { return this._active_modes}
+    public hack_info(): ActiveHackModeInfo | undefined {return this._active_hack_info}
     public debug_string(): string {
         let out = ""
         out += `Host: ${this._host.id}\n`
         out += `  Root: ${this._has_root}\n`
         out += `  Connections: ${this._host.connections}\n`
-        out += "  Active modes:\n"
-        for (const active_mode of this._active_modes) {
-            out += `    ${active_mode.target}, n=${active_mode.threads}, mode=${active_mode.hack_mode}, pid=${active_mode.pid}\n`
+        if (this._hack_running) {
+            out += `  Hack: ${this._active_hack_info?.target}, n=${this._active_hack_info?.threads}, mode=${this._active_hack_info?.hack_mode}, pid=${this._active_hack_info?.pid}\n`
         }
+        
         return out
     }
 
@@ -337,17 +272,12 @@ class Botnet {
     }
 
     private _start_hack(request: HackModeRequest) {
-        const info = {
-            mode: BotMode.Hack,
-            hack_info: request,
-            scan_info: undefined
-        }
         this._active_hack_request = request
         for (const bot of this.bots) {
-            bot.executeMode(info)
+            bot.startHack(request)
         }
         for (const bot of this._purchased_servers) {
-            bot.executeMode(info)
+            bot.startHack(request)
         }
     }
 
@@ -368,9 +298,10 @@ class Botnet {
         if (!hack_file) return
         for (const bot of this.bots) {
             if (bot.has_root()) { with_root += 1}
-            if (bot.active_modes().length > 0) {active_bots += 1}
-            for (const mode of bot.active_modes()) {
-                total_threads += mode.threads
+            const hack_info = bot.hack_info()
+            if (hack_info) {
+                active_bots += 1
+                total_threads += hack_info.threads
             }
             if (ComputeThreads(this._ns, bot.host().id, hack_file) > 0) {
                 with_memory += 1
@@ -392,74 +323,6 @@ class Botnet {
             bot.killall()
         }
         this._hack_running = false
-    }
-
-    public is_bot(hostname: string): boolean {
-        for (const bot of this.bots) {
-            if (bot.host().id === hostname) return true
-        }
-        return false
-    }
-
-    public async full_scan() {
-        let hosts_queue = []
-        let port = this._ns.getPortHandle(constants.scan_data_port)
-        for (const bot of this.bots){
-            hosts_queue.push(bot.host().id)
-        }
-        while (hosts_queue.length > 0) {
-            // Shift next item off the queue
-            const host_to_scan = hosts_queue.shift()
-
-            // Get bot object
-            let cur_bot = null
-            for (const bot of this.bots) {
-                if (bot.host().id === host_to_scan) {
-                    cur_bot = bot
-                    break
-                }
-            }
-            if (!cur_bot) throw Error(`Could not find matching bot ${host_to_scan}`)
-
-            // Start scan
-            const started = cur_bot.executeMode(
-                {mode: BotMode.Scan, hack_info: undefined, scan_info: {prioritize: true}}
-            )
-            if (!started) {
-                // this._ns.tprint(`Failed to start scan on ${host_to_scan}`)
-                continue
-            }
-
-            // Collect results
-            let wait_count = 0
-            let scan_data: Host[] = []
-            while (true) {
-                const raw_data = port.read()
-                if (raw_data === "NULL PORT DATA") {
-                    await this._ns.sleep(100)
-                    wait_count += 1
-                    if(wait_count > 10) {
-                        throw Error(`Failed to receive scan data from ${host_to_scan}`)
-                    }
-                } else {
-                    scan_data = JSON.parse(raw_data.toString())
-                    break
-                }
-            }
-
-            // Determine if any new hosts were discovered
-            let new_hosts = []
-            for (const host of scan_data) {
-                if (!this.is_bot(host.id)) new_hosts.push(host)
-            }
-
-            // Turn new hosts into bots and add them to the scan queue
-            for (const new_host of new_hosts) {
-                // this._ns.tprint(`Created new bot for ${new_host.id}`)
-                this.bots.push(new Bot(this._ns, new_host))
-                hosts_queue.push(new_host.id)
-            }
-        }
     }
 
     public RefreshPurchasedServers() {
@@ -519,11 +382,6 @@ async function BringupBotnet(ns: NS): Promise<Botnet> {
 
     ns.tprint(`Found ${net.bots.length} hosts from bootstrap`)
 
-    // Now use scanning to find the rest of the hosts
-    // ns.tprint("Starting full network scan...")
-    // await net.full_scan()
-    // ns.tprint(`Found ${net.bots.length} host after full scan`)
-
     return net
 }
 
@@ -550,7 +408,7 @@ class SimpleCounterTimer {
 }
 
 async function handleServers(ns: NS, botnet: Botnet) {
-    const purchase_made = buyAndUpgradeServers(ns, constants.min_purchase_server_ram, constants.purchase_server_cost_fraction)
+    const purchase_made = buyAndUpgradeServers(ns, constants.min_purchase_server_ram, constants.purchase_cost_fraction)
     if (purchase_made) {
         ns.tprint(`Purchased or upgraded servers, relaunching net..`)
         botnet.RefreshPurchasedServers()
@@ -580,17 +438,20 @@ export async function main(ns: NS) {
     botnet.print_summary()
 
     ns.tprint("Server running")
-    const server_sleep_time = 100
-    let periodic_trigger = new SimpleCounterTimer(constants.buy_hacknets_time, server_sleep_time, true)
+    let periodic_trigger = new SimpleCounterTimer(
+        constants.periodic_check_time, 
+        constants.server_sleep_time, true
+    )
+    
     while(true) {
 
         if (periodic_trigger.check_trigger()) {
             ns.tprint("Triggered periodic server check")
             handleServers(ns, botnet)
-            buyAndUpgradeAllHacknetNodes(ns, constants.purchase_server_cost_fraction)
+            buyAndUpgradeAllHacknetNodes(ns, constants.purchase_cost_fraction)
             botnet.print_summary()
         }
-        await ns.sleep(server_sleep_time);
+        await ns.sleep(constants.server_sleep_time);
     }
 
 }

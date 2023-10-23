@@ -1,7 +1,7 @@
 import { NS } from "@ns";
 
 const max_levels = 200
-const max_ram = 6
+const max_ram = 7
 const max_cores = 16
 
 function computeFullUpgradeCost(ns: NS, id: number): number {

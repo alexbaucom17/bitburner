@@ -1,5 +1,4 @@
 Tasks
-- Clean up/delete old code
 - Scan all servers for files/coding contracts
 - Improve hacking efficiency/coordination
 - Add state serialization for each server (maybe not needed?)
