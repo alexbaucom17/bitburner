@@ -1,4 +1,7 @@
 Tasks
-- Scan all servers for files/coding contracts
+- Fix number of threads used when bot is restarted after server upgrade
+- Make it so auto server detection always succeeds and then rerun auto check periodically
+    - Properly set up rank vs money mode
+- Work on some coding contracts
+- Scan all servers for interesting reading files
 - Improve hacking efficiency/coordination
-- Add state serialization for each server (maybe not needed?)

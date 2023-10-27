@@ -145,6 +145,7 @@ class Bot {
     // Functions that the bot provides
     public startHack(request: HackModeRequest): boolean {
         if (this._hack_running) return true
+        if (!this._has_root) return false
 
         // Verify file is present
         const file = GetHackFileForMode(request)
@@ -154,7 +155,9 @@ class Bot {
         const max_threads = this._compute_max_threads(file)
         let use_threads = max_threads
         if (max_threads === 0) return false
-        if (request.threads !== undefined) use_threads = Math.min(request.threads, max_threads)
+        // This was causing issues with purchased servers after upgrade. Either fix this or remove 
+        // thread specification for now
+        // if (request.threads !== undefined) use_threads = Math.min(request.threads, max_threads)
         
         // Run the file
         const pid = this._run_hack_file(file, use_threads, request.target)
@@ -286,6 +289,13 @@ class Botnet {
             this._ns.tprint(bot.debug_string())
         }
     }
+    public hosts() {
+        let hosts = []
+        for (const bot of this.bots) {
+            hosts.push(bot.host())
+        }
+        return hosts
+    }
 
     // TODO: Modify/add summary to handle purchased servers
     public print_summary() {
@@ -362,7 +372,7 @@ class Botnet {
 }
 
 
-async function BringupBotnet(ns: NS): Promise<Botnet> {
+function BringupBotnet(ns: NS): Botnet {
 
     const max_depth = 20
     const home_host: Host = {id: "home", connections: ns.scan("home")}
@@ -407,7 +417,7 @@ class SimpleCounterTimer {
     }
 }
 
-async function handleServers(ns: NS, botnet: Botnet) {
+function handleServers(ns: NS, botnet: Botnet) {
     const purchase_made = buyAndUpgradeServers(ns, constants.min_purchase_server_ram, constants.purchase_cost_fraction)
     if (purchase_made) {
         ns.tprint(`Purchased or upgraded servers, relaunching net..`)
@@ -416,13 +426,31 @@ async function handleServers(ns: NS, botnet: Botnet) {
     }    
 }
 
+function findCodingContracts(ns: NS, hosts: Host[]) {
+    let out_str = ""
+    let count = 0
+    for (const host of hosts) {
+        const filenames = ns.ls(host.id, ".cct")
+        for (const file of filenames) {
+            out_str += host.id + ":" + file + "\n"
+            count += 1
+        }
+    }
+    if (count > 0) {
+        ns.tprint(`Found ${count} coding contracts`)
+        ns.write("contracts.txt", out_str, "w")
+    } else {
+        ns.tprint("No coding contracts found.")
+    }
+}
+
 /** @param {NS} ns */
 export async function main(ns: NS) {
 
 
     ns.tprint("Server v2 starting!")
 
-    let botnet = await BringupBotnet(ns)
+    let botnet = BringupBotnet(ns)
     ns.tprint("Botnet Bootstrap Complete!")
     
 
@@ -442,7 +470,7 @@ export async function main(ns: NS) {
         constants.periodic_check_time, 
         constants.server_sleep_time, true
     )
-    
+
     while(true) {
 
         if (periodic_trigger.check_trigger()) {
@@ -450,6 +478,9 @@ export async function main(ns: NS) {
             handleServers(ns, botnet)
             buyAndUpgradeAllHacknetNodes(ns, constants.purchase_cost_fraction)
             botnet.print_summary()
+
+            findCodingContracts(ns, botnet.hosts())
+
         }
         await ns.sleep(constants.server_sleep_time);
     }
