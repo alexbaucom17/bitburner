@@ -154,7 +154,7 @@ class Bot {
         // Determine how many threads to use
         const max_threads = this._compute_max_threads(file)
         let use_threads = max_threads
-        if (max_threads === 0) return false
+        if (max_threads <= 0) return false
         // This was causing issues with purchased servers after upgrade. Either fix this or remove 
         // thread specification for now
         // if (request.threads !== undefined) use_threads = Math.min(request.threads, max_threads)
@@ -457,8 +457,8 @@ export async function main(ns: NS) {
     ns.tprint("Killing all bot activity")
     botnet.killall()
 
-    botnet.hack_auto()
-    // botnet.hack_manual("joesguns")
+    // botnet.hack_auto()
+    botnet.hack_manual("joesguns")
     ns.tprint("Botnet hacking started")
 
     // botnet.print()
