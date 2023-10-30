@@ -1,5 +1,89 @@
 import { NS } from "@ns";
 
+// Solutions
+
+// Algorithmic Stock Trader I
+function stock_trader_1(data: number[]): number {
+    let max_diff = 0
+    for (let i = 0; i < data.length-1; i++) {
+        for (let j = i; j < data.length; j ++) {
+            const diff = data[j] - data[i]
+            if ( diff > max_diff) max_diff = diff
+        }
+    }
+    return max_diff
+}
+
+//Algorithmic Stock Trader III
+function stock_trader_3(data: number[]): number {
+    let max_sum = stock_trader_1(data)
+    for (let split_ix = 1; split_ix < data.length-1; split_ix++) {
+        const front = data.slice(0, split_ix)
+        const back = data.slice(split_ix)
+        const p1 = stock_trader_1(front)
+        const p2 = stock_trader_1(back)
+        const total = p1 + p2
+        if (total > max_sum) max_sum = total
+    }
+    return max_sum
+}
+
+// Subarray with Maximum Sum
+function subarray_max_sum(data: number[]): number {
+    let max_sum = -100000
+    for (let i = 0; i < data.length; i++) {
+        let running_sum = 0
+        for (let j = i; j < data.length; j++) {
+            running_sum += data[j]
+            if (running_sum > max_sum) max_sum = running_sum
+        }
+    }
+    return max_sum
+}
+
+// Find Largest Prime Factor
+function largest_prime_factor(input: number): number {
+    let data = input
+    while (true) {
+        const result = primeOrDivisor(data)
+        if (result.is_prime) return result.value
+        else data = data / result.value
+    }
+}
+interface primeOrDivisorResult {
+    is_prime: boolean
+    value: number
+}
+function primeOrDivisor(input: number): primeOrDivisorResult {
+    for (let i = 2; i < Math.floor(input/2.0); i++) {
+        if (input % i === 0) {
+            return {is_prime: false, value: i}
+        }
+    }
+    return {is_prime: true, value: input}
+}
+
+// Array Jumping Game
+function array_jumping_game(data: number[]): number {
+    let to_check = [0]
+    let checked = new Set()
+    while (to_check.length > 0) {
+        const ix = to_check.pop()
+        if (ix === undefined) continue
+        if (checked.has(ix)) continue
+        const val = data[ix]
+        if (ix + val >= data.length) return 1
+        for (let j = 1; j < val; j++) {
+            to_check.push(ix + j)
+        }
+        checked.add(ix)
+    }
+    return 0
+}
+
+
+// Utilities
+
 function printDetails(ns: NS, filename: string, hostname: string) {
 	const type = ns.codingcontract.getContractType(filename, hostname)
 	const data = ns.codingcontract.getData(filename, hostname)
@@ -20,30 +104,6 @@ function getAvailableContractsFromFile(ns: NS): string[] {
     return lines
 }
 
-// Algorithmic Stock Trader I
-function stock_trader_1(data: number[]): number {
-    let max_diff = 0
-    for (let i = 0; i < data.length-1; i++) {
-        for (let j = i; j < data.length; j ++) {
-            const diff = data[j] - data[i]
-            if ( diff > max_diff) max_diff = diff
-        }
-    }
-    return max_diff
-}
-
-function subarray_max_sum(data: number[]) {
-    let max_sum = -100000
-    for (let i = 0; i < data.length; i++) {
-        let running_sum = 0
-        for (let j = i; j < data.length; j++) {
-            running_sum += data[j]
-            if (running_sum > max_sum) max_sum = running_sum
-        }
-    }
-    return max_sum
-}
-
 function maybeSolve(ns: NS, hostname: string, filename: string): boolean {
 	const type = ns.codingcontract.getContractType(filename, hostname)
 	const data = ns.codingcontract.getData(filename, hostname)
@@ -51,8 +111,14 @@ function maybeSolve(ns: NS, hostname: string, filename: string): boolean {
     let solution = null
     if (type === "Algorithmic Stock Trader I") {
         solution = stock_trader_1(data)
+    } else if (type === "Algorithmic Stock Trader III") {
+        solution = stock_trader_3(data)
     } else if (type === "Subarray with Maximum Sum") {
         solution = subarray_max_sum(data)
+    } else if (type === "Find Largest Prime Factor") {
+        solution = largest_prime_factor(data)
+    } else if (type === "Array Jumping Game") {
+        solution = array_jumping_game(data)
     } else {
         return false
     }
@@ -62,7 +128,8 @@ function maybeSolve(ns: NS, hostname: string, filename: string): boolean {
         ns.tprint(`Contract ${filename} (${type}) solved successfully! Reward: ${result}`)
     } else {
         printDetails(ns, filename, hostname)
-        throw Error(`Failed to solve contract as expected. Given answer: ${solution}. Attempts remaining: ${ns.codingcontract.getNumTriesRemaining(filename, hostname)}`)
+        ns.tprint(`Failed to solve contract ${filename} as expected. Given answer: ${solution}. Attempts remaining: ${ns.codingcontract.getNumTriesRemaining(filename, hostname)}`)
+        throw Error("Failed to solve contract")
     }
     return true
 }
@@ -88,6 +155,15 @@ function solveAuto(ns: NS) {
     ns.tprint(`Found ${num_found} contracts. Solved: ${solved}, Skipped: ${skipped}, Missing: ${missing}`)
 }
 
+function testSolve(ns: NS) {
+    const filename = "contract-741682.cct"
+    const hostname = "netlink"
+    printDetails(ns, filename, hostname)
+    const data = ns.codingcontract.getData(filename, hostname)
+    // const solution = stock_trader_3(data, ns)
+    // ns.tprint(`Solution: ${solution}`)
+}
+
 
 /** @param {NS} ns */
 export async function main(ns: NS) {
@@ -98,6 +174,7 @@ export async function main(ns: NS) {
     // Handle args for solving and indexing
     let solve = false
     let auto = false
+    let test = false
     let ix = -1
     if (ns.args.length > 0) {
         for (const arg of ns.args) {
@@ -109,12 +186,26 @@ export async function main(ns: NS) {
             }
             else if (arg === "auto") {
                 auto = true
+            } else if (arg === "test") {
+                test = true
             }
         }
     }
 
     if (auto) {
         solveAuto(ns)
+    } else if (test) {
+        if (ix === -1) {
+            testSolve(ns)
+        } else {
+            const lines = getAvailableContractsFromFile(ns)
+            contract_info = lines[ix]
+            const split_info = contract_info.split(":")
+            const host = split_info[0]
+            const filename = split_info[1]
+            printDetails(ns, filename, host)
+            maybeSolve(ns, host, filename)
+        }
     } else {
 
         // Try to read from contracts list 
