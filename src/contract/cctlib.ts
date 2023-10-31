@@ -14,7 +14,17 @@ function stock_trader_1(data: number[]): number {
     return max_diff
 }
 
-//Algorithmic Stock Trader III
+// Algorithmic Stock Trader II
+function stock_trader_2(data: number[]): number {
+    let total_diff = 0
+    for (let i = 0; i < data.length -1; i++) {
+        const diff = data[i+1] - data[i]
+        if (diff > 0) total_diff += diff
+    }
+    return total_diff
+}
+
+// Algorithmic Stock Trader III
 function stock_trader_3(data: number[]): number {
     let max_sum = stock_trader_1(data)
     for (let split_ix = 1; split_ix < data.length-1; split_ix++) {
@@ -64,22 +74,50 @@ function primeOrDivisor(input: number): primeOrDivisorResult {
 }
 
 // Array Jumping Game
-function array_jumping_game(data: number[]): number {
-    let to_check = [0]
+function array_jump_dfs(data: number[]): number {
+    interface node {
+        ix: number
+        num_steps: number
+    }
+
+    let to_check: node[] = [{ix: 0, num_steps: 0}]
     let checked = new Set()
     while (to_check.length > 0) {
-        const ix = to_check.pop()
-        if (ix === undefined) continue
+        const cur_node = to_check.pop()
+        if (cur_node === undefined) continue
+        // ns.tprint(`Checking node: ${cur_node.ix}, ${cur_node.num_steps}`)
+        const ix = cur_node.ix
         if (checked.has(ix)) continue
         const val = data[ix]
-        if (ix + val >= data.length) return 1
-        for (let j = 1; j < val; j++) {
-            to_check.push(ix + j)
+        // ns.tprint(`Value: ${val}`)
+        if (ix + val >= data.length) return cur_node.num_steps + 1
+        for (let j = 1; j <= val; j++) {
+            to_check.push({ix: ix + j, num_steps: cur_node.num_steps+1})
         }
         checked.add(ix)
     }
     return 0
 }
+
+function array_jumping_game(data: number[]): number {
+    const num_steps = array_jump_dfs(data)
+    if (num_steps !== 0) return 1
+    return 0
+}
+
+// Array Jumping Game II
+function array_jumping_game_2(data: number[]): number {
+    return array_jump_dfs(data)
+}
+
+// Unique Paths in a Grid I
+// function unique_paths_grid_1(data: number[]) : number {
+//     const rows = data[0]
+//     const cols = data[1]
+//     const choices = (rows - 1) + (cols - 1)
+//     const paths = Math.pow(2, choices)
+//     return paths
+// }
 
 
 // Utilities
@@ -111,6 +149,8 @@ function maybeSolve(ns: NS, hostname: string, filename: string): boolean {
     let solution = null
     if (type === "Algorithmic Stock Trader I") {
         solution = stock_trader_1(data)
+    } else if (type === "Algorithmic Stock Trader II") {
+        solution = stock_trader_2(data)
     } else if (type === "Algorithmic Stock Trader III") {
         solution = stock_trader_3(data)
     } else if (type === "Subarray with Maximum Sum") {
@@ -119,6 +159,10 @@ function maybeSolve(ns: NS, hostname: string, filename: string): boolean {
         solution = largest_prime_factor(data)
     } else if (type === "Array Jumping Game") {
         solution = array_jumping_game(data)
+    } else if (type === "Array Jumping Game II") {
+        solution = array_jumping_game_2(data)
+    // } else if (type === "Unique Paths in a Grid I") {
+    //     solution = unique_paths_grid_1(data)
     } else {
         return false
     }
@@ -156,11 +200,11 @@ function solveAuto(ns: NS) {
 }
 
 function testSolve(ns: NS) {
-    const filename = "contract-741682.cct"
-    const hostname = "netlink"
+    const filename = "contract-536691.cct"
+    const hostname = "clarkinc"
     printDetails(ns, filename, hostname)
     const data = ns.codingcontract.getData(filename, hostname)
-    // const solution = stock_trader_3(data, ns)
+    // const solution = array_jumping_game_2(data, ns)
     // ns.tprint(`Solution: ${solution}`)
 }
 
